@@ -91,7 +91,7 @@ def rbf_kernel(
         sigma_sq = sigma**2
 
     # Clamp exponent to prevent overflow/underflow
-    exponent = -sq_distances / (2 * sigma_sq + epsilon)
+    exponent = -sq_distances / (2 * (sigma_sq + epsilon))
     exponent = torch.clamp(exponent, min=-50.0, max=0.0)
 
     return torch.exp(exponent)
@@ -378,7 +378,8 @@ def cka(
         hsic_yy = hsic(gram_y, gram_y, config.unbiased, config.epsilon)
 
     # Compute CKA with epsilon guard in denominator
-    denominator = torch.sqrt(hsic_xx * hsic_yy) + config.epsilon
+    # Clamp to non-negative to handle potential negative unbiased HSIC values
+    denominator = torch.sqrt(torch.clamp(hsic_xx * hsic_yy, min=0.0)) + config.epsilon
     return hsic_xy / denominator
 
 
@@ -411,5 +412,6 @@ def cka_from_gram(
         hsic_xx = hsic(gram_x, gram_x, unbiased, epsilon)
         hsic_yy = hsic(gram_y, gram_y, unbiased, epsilon)
 
-    denominator = torch.sqrt(hsic_xx * hsic_yy) + epsilon
+    # Clamp to non-negative to handle potential negative unbiased HSIC values
+    denominator = torch.sqrt(torch.clamp(hsic_xx * hsic_yy, min=0.0)) + epsilon
     return hsic_xy / denominator
