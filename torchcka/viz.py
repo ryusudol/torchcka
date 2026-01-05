@@ -126,7 +126,7 @@ def plot_cka_heatmap(
         parts = name.split(".")
         return ".".join(parts[-depth:])
 
-    # Set tick labels (critical fix: layers1 for y-axis, layers2 for x-axis)
+    # Set tick labels
     if layers1 is not None:
         shortened = [shorten_name(l, layer_name_depth) for l in layers1]
         ax.set_yticks(range(n_layers1))

@@ -153,7 +153,7 @@ class CKA:
         self._features1 = FeatureCache(detach=True)
         self._features2 = FeatureCache(detach=True)
 
-        # Hook handles for cleanup (critical fix from reference repos)
+        # Hook handles for cleanup
         self._hook_handles: List[torch.utils.hooks.RemovableHandle] = []
 
         # Training state for restoration
@@ -313,7 +313,7 @@ class CKA:
         if progress:
             iterator = tqdm(iterator, total=total_batches, desc="Computing CKA")
 
-        with torch.no_grad():  # Critical: no gradients during inference
+        with torch.no_grad():  # No gradients during inference
             for batch_idx, (batch1, batch2) in enumerate(iterator):
                 # Clear previous features
                 self._features1.clear()
@@ -407,7 +407,7 @@ class CKA:
             )
             gram2_cache[layer2] = gram2
 
-            # Compute HSIC(L, L) once per layer2 (critical fix from reference repos)
+            # Compute HSIC(L, L)
             hsic_ll = hsic(gram2, gram2, self.config.unbiased, self.config.epsilon)
             hsic_yy_batch[layer2] = hsic_ll
             hsic_yy[j] += hsic_ll
