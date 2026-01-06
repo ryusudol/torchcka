@@ -25,6 +25,8 @@ from .utils import (
     validate_layers,
 )
 
+BATCH_INPUT_KEYS = ("input", "inputs", "x", "image", "images", "input_ids", "pixel_values")
+
 
 @dataclass
 class ModelInfo:
@@ -175,7 +177,7 @@ class CKA:
         """Exit context: remove hooks and restore training state."""
         self._remove_hooks()
         self._restore_training_state()
-        return False  # Don't suppress exceptions
+        return False
 
     # =========================================================================
     # HOOK MANAGEMENT
@@ -204,7 +206,6 @@ class CKA:
             # Handle tuple outputs (e.g., from attention layers)
             if isinstance(output, tuple):
                 output = output[0]
-            # Store with detach (handled by FeatureCache)
             cache.store(layer_name, output)
 
         return hook
@@ -297,7 +298,7 @@ class CKA:
         n_layers1 = len(self.layers1)
         n_layers2 = len(self.layers2)
 
-        # Accumulators for minibatch CKA (sum of HSIC values)
+        # Accumulators for minibatch CKA
         hsic_xy = torch.zeros(
             n_layers1, n_layers2, device=self.config.device, dtype=self.config.dtype
         )
@@ -310,20 +311,17 @@ class CKA:
         if progress:
             iterator = tqdm(iterator, total=total_batches, desc="Computing CKA")
 
-        with torch.no_grad():  # No gradients during inference
+        with torch.no_grad():
             for batch_idx, (batch1, batch2) in enumerate(iterator):
                 # Clear previous features
                 self._features1.clear()
                 self._features2.clear()
 
-                # Extract inputs
                 x1 = self._extract_input(batch1)
                 x2 = self._extract_input(batch2)
 
-                # Validate batch size
                 validate_batch_size(x1.shape[0], self.config.unbiased)
 
-                # Move to device
                 x1 = x1.to(self.config.device)
                 x2 = x2.to(self.config.device)
 
@@ -335,7 +333,6 @@ class CKA:
                     # Same model: _features1 contains union of layers1 and layers2
                     self._features2 = self._features1
 
-                # Accumulate HSIC values
                 self._accumulate_hsic(hsic_xy, hsic_xx, hsic_yy)
 
                 if callback is not None:
@@ -365,7 +362,7 @@ class CKA:
         elif isinstance(batch, (list, tuple)):
             return batch[0]
         elif isinstance(batch, dict):
-            for key in ("input", "inputs", "x", "image", "images", "input_ids", "pixel_values"):
+            for key in BATCH_INPUT_KEYS:
                 if key in batch:
                     return batch[key]
             raise ValueError(f"Cannot find input in dict batch. Keys: {list(batch.keys())}")
@@ -412,7 +409,6 @@ class CKA:
             hsic_xx: Accumulator for HSIC(K, K), shape (n_layers1,).
             hsic_yy: Accumulator for HSIC(L, L), shape (n_layers2,).
         """
-        # Pre-compute all gram matrices and self-HSIC values to avoid redundant computation
         gram1_cache: Dict[str, torch.Tensor] = {}
         gram2_cache: Dict[str, torch.Tensor] = {}
 
@@ -467,7 +463,6 @@ class CKA:
             CKA matrix of shape (n_layers1, n_layers2).
         """
         # CKA[i,j] = HSIC_xy[i,j] / sqrt(HSIC_xx[i] * HSIC_yy[j])
-        # Use broadcasting: (n1, n2) / sqrt((n1, 1) * (1, n2))
         # Clamp to non-negative to handle potential negative unbiased HSIC values
         denominator = torch.sqrt(torch.clamp(hsic_xx.unsqueeze(1) * hsic_yy.unsqueeze(0), min=0.0)) + self.config.epsilon
         return hsic_xy / denominator
