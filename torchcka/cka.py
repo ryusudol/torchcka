@@ -150,6 +150,8 @@ class CKA:
         )
 
         # Feature storage
+        # When _same_model is True, _features1 stores the union of layers1 and layers2,
+        # and _features2 is aliased to _features1 in compare() for efficiency.
         self._features1 = FeatureCache(detach=True)
         self._features2 = FeatureCache(detach=True)
 
@@ -224,9 +226,16 @@ class CKA:
         if self._hooks_registered:
             return
 
+        # When same model, hook union of layers1 and layers2 to _features1.
+        # A single forward pass will populate all needed features, and
+        # _features2 will be aliased to _features1 in compare().
+        layers_to_hook = set(self.layers1)
+        if self._same_model:
+            layers_to_hook = layers_to_hook.union(set(self.layers2))
+
         # Register hooks for model1
         for name, module in self.model1.named_modules():
-            if name in self.layers1:
+            if name in layers_to_hook:
                 handle = module.register_forward_hook(
                     self._make_hook(self._features1, name)
                 )
@@ -335,7 +344,7 @@ class CKA:
                 if not self._same_model:
                     self.model2(x2)
                 else:
-                    # For same model, use same features
+                    # Same model: _features1 contains union of layers1 and layers2
                     self._features2 = self._features1
 
                 # Accumulate HSIC values
