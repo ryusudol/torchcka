@@ -1,11 +1,12 @@
 <div align="center">
 
-# torchcka
+# CKA for PyTorch models
 
 **Centered Kernel Alignment (CKA) for PyTorch**
 
 Numerically stable, memory-safe comparison of neural network representations.
 
+[![PyPI](https://img.shields.io/pypi/v/pytorch_cka?style=for-the-badge&logo=pypi&logoColor=white)](https://pypi.org/project/pytorch_cka/)
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
@@ -16,7 +17,7 @@ Numerically stable, memory-safe comparison of neural network representations.
 
 ## About
 
-**Centered Kernel Alignment (CKA)** is a similarity metric for comparing representations learned by neural networks, based on the Hilbert-Schmidt Independence Criterion (HSIC). It answers the question: *"How similar are the features learned by two layers (or models)?"*
+**Centered Kernel Alignment (CKA)** is a similarity metric for comparing representations learned by neural networks, based on the Hilbert-Schmidt Independence Criterion (HSIC). It answers the question: _"How similar are the features learned by two layers (or models)?"_
 
 Given two matrices $X \in \mathbb{R}^{n \times p_1}$ and $Y \in \mathbb{R}^{n \times p_2}$ representing layer activations for $n$ samples, CKA computes:
 
@@ -24,7 +25,7 @@ $$\text{CKA}(K, L) = \frac{\text{HSIC}(K, L)}{\sqrt{\text{HSIC}(K, K) \cdot \tex
 
 where $K = XX^T$ and $L = YY^T$ are Gram matrices, and HSIC measures statistical dependence between them.
 
-### Why torchcka?
+### Why pytorch-cka?
 
 - **Memory-efficient**: Uses minibatch CKA—accumulates HSIC values instead of storing all activations
 - **Safe hooks**: Context manager ensures forward hooks are always cleaned up
@@ -41,14 +42,14 @@ Requires Python >= 3.10.
 
 ```bash
 # Using uv (recommended)
-uv add torchcka
+uv add pytorch-cka
 
 # Using pip
-pip install torchcka
+pip install pytorch-cka
 
 # From source
-git clone https://github.com/ryusudol/torchcka
-cd torchcka
+git clone https://github.com/ryusudol/pytorch-cka
+cd pytorch-cka
 uv sync  # or: pip install -e .
 ```
 
@@ -59,7 +60,7 @@ uv sync  # or: pip install -e .
 ### Basic Usage
 
 ```python
-from torchcka import CKA, CKAConfig, plot_cka_heatmap
+from pytorch_cka import CKA, CKAConfig, plot_cka_heatmap
 
 # Define layers to compare
 layers = ["layer1", "layer2", "layer3", "fc"]
@@ -111,7 +112,7 @@ with CKA(model) as cka:
 ## Configuration
 
 ```python
-from torchcka import CKAConfig
+from pytorch_cka import CKAConfig
 
 config = CKAConfig(
     kernel="linear",    # "linear" or "rbf"
@@ -132,7 +133,7 @@ config = CKAConfig(
 ### Heatmap
 
 ```python
-from torchcka import plot_cka_heatmap
+from pytorch_cka import plot_cka_heatmap
 
 fig, ax = plot_cka_heatmap(
     matrix,
@@ -149,7 +150,7 @@ fig, ax = plot_cka_heatmap(
 ### Trend Plot
 
 ```python
-from torchcka import plot_cka_trend
+from pytorch_cka import plot_cka_trend
 
 # Plot diagonal (self-similarity across layers)
 diagonal = torch.diag(matrix)
@@ -164,7 +165,7 @@ fig, ax = plot_cka_trend(
 ### Side-by-Side Comparison
 
 ```python
-from torchcka import plot_cka_comparison
+from pytorch_cka import plot_cka_comparison
 
 fig, axes = plot_cka_comparison(
     matrices=[matrix1, matrix2, matrix3],
@@ -203,41 +204,41 @@ config = checkpoint["config"]
 
 ### Core Functions
 
-| Function | Description |
-|----------|-------------|
-| `cka(X, Y, ...)` | Compute CKA between two activation matrices |
-| `hsic(K, L, ...)` | Compute HSIC between two Gram matrices |
-| `compute_gram_matrix(X, kernel, ...)` | Compute Gram matrix with linear or RBF kernel |
-| `linear_kernel(X, Y)` | Linear kernel: $K = XY^T$ |
-| `rbf_kernel(X, Y, sigma)` | RBF kernel: $K_{ij} = \exp(-\|x_i - y_j\|^2 / 2\sigma^2)$ |
+| Function                              | Description                                               |
+| ------------------------------------- | --------------------------------------------------------- |
+| `cka(X, Y, ...)`                      | Compute CKA between two activation matrices               |
+| `hsic(K, L, ...)`                     | Compute HSIC between two Gram matrices                    |
+| `compute_gram_matrix(X, kernel, ...)` | Compute Gram matrix with linear or RBF kernel             |
+| `linear_kernel(X, Y)`                 | Linear kernel: $K = XY^T$                                 |
+| `rbf_kernel(X, Y, sigma)`             | RBF kernel: $K_{ij} = \exp(-\|x_i - y_j\|^2 / 2\sigma^2)$ |
 
 ### Utilities
 
-| Function | Description |
-|----------|-------------|
-| `get_all_layer_names(model)` | List all named modules in a model |
-| `validate_layers(model, layers)` | Check which layers exist |
-| `unwrap_model(model)` | Unwrap DataParallel/DDP models |
-| `get_device(model)` | Detect model device |
+| Function                         | Description                       |
+| -------------------------------- | --------------------------------- |
+| `get_all_layer_names(model)`     | List all named modules in a model |
+| `validate_layers(model, layers)` | Check which layers exist          |
+| `unwrap_model(model)`            | Unwrap DataParallel/DDP models    |
+| `get_device(model)`              | Detect model device               |
 
 ### Visualization
 
-| Function | Description |
-|----------|-------------|
-| `plot_cka_heatmap(...)` | CKA similarity heatmap |
-| `plot_cka_trend(...)` | Line plot for CKA trends |
+| Function                   | Description                    |
+| -------------------------- | ------------------------------ |
+| `plot_cka_heatmap(...)`    | CKA similarity heatmap         |
+| `plot_cka_trend(...)`      | Line plot for CKA trends       |
 | `plot_cka_comparison(...)` | Side-by-side matrix comparison |
-| `save_figure(fig, path)` | Save with sensible defaults |
+| `save_figure(fig, path)`   | Save with sensible defaults    |
 
 ---
 
 ## References
 
-1. Kornblith, Simon, et al. ["Similarity of Neural Network Representations Revisited."](https://arxiv.org/abs/1905.00414) *ICML 2019.*
+1. Kornblith, Simon, et al. ["Similarity of Neural Network Representations Revisited."](https://arxiv.org/abs/1905.00414) _ICML 2019._
 
-2. Nguyen, Thao, Maithra Raghu, and Simon Kornblith. ["Do Wide and Deep Networks Learn the Same Things?"](https://arxiv.org/abs/2010.15327) *arXiv 2020.* (Minibatch CKA)
+2. Nguyen, Thao, Maithra Raghu, and Simon Kornblith. ["Do Wide and Deep Networks Learn the Same Things?"](https://arxiv.org/abs/2010.15327) _arXiv 2020._ (Minibatch CKA)
 
-3. Wang, Tinghua, Xiaolu Dai, and Yuze Liu. ["Learning with Hilbert-Schmidt Independence Criterion: A Review."](https://www.sciencedirect.com/science/article/pii/S0950705121008297) *Knowledge-Based Systems 2021.*
+3. Wang, Tinghua, Xiaolu Dai, and Yuze Liu. ["Learning with Hilbert-Schmidt Independence Criterion: A Review."](https://www.sciencedirect.com/science/article/pii/S0950705121008297) _Knowledge-Based Systems 2021._
 
 ### Related Projects
 
