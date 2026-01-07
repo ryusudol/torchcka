@@ -1,4 +1,4 @@
-"""Tests for torchcka compatibility with HuggingFace transformers models.
+"""Tests for pytorch_cka compatibility with HuggingFace transformers models.
 
 Tests LLM architectures:
 - BERT (encoder-only)

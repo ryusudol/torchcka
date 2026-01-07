@@ -1,4 +1,4 @@
-"""Tests for torchcka.cka module."""
+"""Tests for pytorch_cka.cka module."""
 
 import warnings
 

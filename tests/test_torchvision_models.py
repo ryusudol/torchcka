@@ -1,4 +1,4 @@
-"""Tests for torchcka compatibility with torchvision models.
+"""Tests for pytorch_cka compatibility with torchvision models.
 
 Tests traditional CNNs (ResNet, VGG, AlexNet) and Vision Transformers (ViT, Swin).
 """

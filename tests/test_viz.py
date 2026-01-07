@@ -1,4 +1,4 @@
-"""Tests for torchcka.viz module."""
+"""Tests for pytorch_cka.viz module."""
 
 import matplotlib
 import numpy as np

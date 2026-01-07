@@ -1,4 +1,4 @@
-"""Tests for torchcka.config module."""
+"""Tests for pytorch_cka.config module."""
 
 import pytest
 import torch

@@ -1,4 +1,4 @@
-"""Tests for torchcka compatibility with timm models.
+"""Tests for pytorch_cka compatibility with timm models.
 
 Tests modern CNN architectures (ConvNeXt V2, MobileNetV4) from the timm library.
 These represent state-of-the-art CNN designs released in 2023-2024.
