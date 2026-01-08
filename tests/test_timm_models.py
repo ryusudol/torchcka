@@ -15,7 +15,7 @@ try:
 except ImportError:
     TIMM_AVAILABLE = False
 
-from pytorch_cka import CKA, CKAConfig
+from pytorch_cka import CKA
 
 from .helpers import get_sample_layers, get_layers_by_type
 
@@ -64,7 +64,7 @@ class TestModernCNNs:
         """ConvNeXt V2 Tiny should work with CKA feature extraction."""
         layers = get_sample_layers(convnextv2_tiny, max_layers=5)
 
-        with CKA(convnextv2_tiny, layers1=layers) as cka:
+        with CKA(convnextv2_tiny, convnextv2_tiny, model1_layers=layers, model2_layers=layers) as cka:
             matrix = cka.compare(image_dataloader, progress=False)
 
         assert matrix.shape == (len(layers), len(layers))
@@ -79,7 +79,7 @@ class TestModernCNNs:
             ln_layers = ln_layers[:3]
 
         if ln_layers:
-            with CKA(convnextv2_tiny, layers1=ln_layers) as cka:
+            with CKA(convnextv2_tiny, convnextv2_tiny, model1_layers=ln_layers, model2_layers=ln_layers) as cka:
                 matrix = cka.compare(image_dataloader, progress=False)
 
             assert not torch.isnan(matrix).any()
@@ -90,7 +90,7 @@ class TestModernCNNs:
         """ConvNeXt V2 self-comparison diagonal should be approximately 1.0."""
         layers = get_sample_layers(convnextv2_tiny, max_layers=3)
 
-        with CKA(convnextv2_tiny, layers1=layers) as cka:
+        with CKA(convnextv2_tiny, convnextv2_tiny, model1_layers=layers, model2_layers=layers) as cka:
             matrix = cka.compare(image_dataloader, progress=False)
 
         diagonal = torch.diag(matrix)
@@ -101,7 +101,7 @@ class TestModernCNNs:
         layers = get_sample_layers(convnextv2_tiny, max_layers=3)
         hooks_before = sum(len(m._forward_hooks) for m in convnextv2_tiny.modules())
 
-        with CKA(convnextv2_tiny, layers1=layers) as cka:
+        with CKA(convnextv2_tiny, convnextv2_tiny, model1_layers=layers, model2_layers=layers) as cka:
             _ = cka.compare(image_dataloader, progress=False)
 
         hooks_after = sum(len(m._forward_hooks) for m in convnextv2_tiny.modules())
@@ -113,7 +113,7 @@ class TestModernCNNs:
         """MobileNetV4 Small should work with CKA feature extraction."""
         layers = get_sample_layers(mobilenetv4_small, max_layers=5)
 
-        with CKA(mobilenetv4_small, layers1=layers) as cka:
+        with CKA(mobilenetv4_small, mobilenetv4_small, model1_layers=layers, model2_layers=layers) as cka:
             matrix = cka.compare(image_dataloader, progress=False)
 
         assert matrix.shape == (len(layers), len(layers))
@@ -128,7 +128,7 @@ class TestModernCNNs:
             conv_layers = conv_layers[:3]
 
         if conv_layers:
-            with CKA(mobilenetv4_small, layers1=conv_layers) as cka:
+            with CKA(mobilenetv4_small, mobilenetv4_small, model1_layers=conv_layers, model2_layers=conv_layers) as cka:
                 matrix = cka.compare(image_dataloader, progress=False)
 
             assert not torch.isnan(matrix).any()
@@ -139,7 +139,7 @@ class TestModernCNNs:
         """MobileNetV4 self-comparison diagonal should be approximately 1.0."""
         layers = get_sample_layers(mobilenetv4_small, max_layers=3)
 
-        with CKA(mobilenetv4_small, layers1=layers) as cka:
+        with CKA(mobilenetv4_small, mobilenetv4_small, model1_layers=layers, model2_layers=layers) as cka:
             matrix = cka.compare(image_dataloader, progress=False)
 
         diagonal = torch.diag(matrix)
@@ -160,8 +160,8 @@ class TestCrossLibraryComparison:
         with CKA(
             convnextv2_tiny,
             convnext_tiny_torchvision,
-            layers1=v2_layers,
-            layers2=v1_layers,
+            model1_layers=v2_layers,
+            model2_layers=v1_layers,
         ) as cka:
             matrix = cka.compare(image_dataloader, progress=False)
 
@@ -181,7 +181,7 @@ class TestCrossLibraryComparison:
 
         layers = get_sample_layers(model1, max_layers=3)
 
-        with CKA(model1, model2, layers1=layers, layers2=layers) as cka:
+        with CKA(model1, model2, model1_layers=layers, model2_layers=layers) as cka:
             matrix = cka.compare(image_dataloader, progress=False)
 
         assert matrix.shape == (len(layers), len(layers))
@@ -204,41 +204,8 @@ class TestNumericalStability:
         model = timm.create_model(model_name, pretrained=False)
         layers = get_sample_layers(model, max_layers=3)
 
-        with CKA(model, layers1=layers) as cka:
+        with CKA(model, model, model1_layers=layers, model2_layers=layers) as cka:
             matrix = cka.compare(image_dataloader, progress=False)
 
         assert not torch.isnan(matrix).any(), f"{model_name} produced NaN values"
         assert not torch.isinf(matrix).any(), f"{model_name} produced Inf values"
-
-    def test_float64_precision_convnextv2(self, convnextv2_tiny, image_dataloader):
-        """ConvNeXt V2 should work with float64 precision."""
-        layers = get_sample_layers(convnextv2_tiny, max_layers=3)
-        config = CKAConfig(dtype=torch.float64)
-
-        with CKA(convnextv2_tiny, layers1=layers, config=config) as cka:
-            matrix = cka.compare(image_dataloader, progress=False)
-
-        assert matrix.dtype == torch.float64
-        assert not torch.isnan(matrix).any()
-
-    def test_rbf_kernel_modern_cnn(self, convnextv2_tiny, image_dataloader):
-        """RBF kernel should work with modern CNN architectures."""
-        layers = get_sample_layers(convnextv2_tiny, max_layers=3)
-        config = CKAConfig(kernel="rbf")
-
-        with CKA(convnextv2_tiny, layers1=layers, config=config) as cka:
-            matrix = cka.compare(image_dataloader, progress=False)
-
-        assert not torch.isnan(matrix).any()
-        assert not torch.isinf(matrix).any()
-
-    def test_biased_hsic_modern_cnn(self, mobilenetv4_small, image_dataloader):
-        """Biased HSIC estimator should work with modern CNNs."""
-        layers = get_sample_layers(mobilenetv4_small, max_layers=3)
-        config = CKAConfig(unbiased=False)
-
-        with CKA(mobilenetv4_small, layers1=layers, config=config) as cka:
-            matrix = cka.compare(image_dataloader, progress=False)
-
-        assert not torch.isnan(matrix).any()
-        assert not torch.isinf(matrix).any()

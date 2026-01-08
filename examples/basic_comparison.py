@@ -4,15 +4,14 @@
 This example demonstrates:
 1. Comparing a model with itself (self-similarity)
 2. Comparing two different models
-3. Using different kernel types (linear and RBF)
-4. Visualizing results with heatmaps and trend plots
+3. Visualizing results with heatmaps and trend plots
 """
 
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from pytorch_cka import CKA, CKAConfig, plot_cka_heatmap, plot_cka_trend
+from pytorch_cka import CKA, plot_cka_heatmap, plot_cka_trend
 
 
 # =============================================================================
@@ -94,15 +93,8 @@ def example_self_comparison():
     # Define layers to compare
     layers = ["conv1", "conv2", "conv3", "fc"]
 
-    # Configure CKA
-    config = CKAConfig(
-        kernel="linear",
-        unbiased=True,
-        dtype=torch.float64,
-    )
-
     # Compute CKA using context manager
-    with CKA(model, layers1=layers, config=config) as cka:
+    with CKA(model, model, model1_layers=layers) as cka:
         matrix = cka.compare(dataloader, progress=False)
 
     print(f"\nCKA Matrix (self-comparison):\n{matrix}")
@@ -136,16 +128,13 @@ def example_two_model_comparison():
     layers1 = ["conv1", "conv2", "conv3", "fc"]
     layers2 = ["conv1", "conv2", "conv3", "fc"]
 
-    config = CKAConfig(kernel="linear", unbiased=True)
-
     with CKA(
         model1,
         model2,
-        layers1=layers1,
-        layers2=layers2,
+        model1_layers=layers1,
+        model2_layers=layers2,
         model1_name="SimpleCNN",
         model2_name="WiderCNN",
-        config=config,
     ) as cka:
         matrix = cka.compare(dataloader, progress=False)
 
@@ -165,42 +154,10 @@ def example_two_model_comparison():
     print("\nSaved: cka_two_models.png")
 
 
-def example_rbf_kernel():
-    """Example: Using RBF kernel instead of linear."""
-    print("\n" + "=" * 60)
-    print("Example 3: Using RBF kernel")
-    print("=" * 60)
-
-    model = SimpleCNN()
-    dataloader = create_dummy_dataloader()
-
-    layers = ["conv1", "conv2", "conv3", "fc"]
-
-    # Use RBF kernel
-    config = CKAConfig(kernel="rbf", unbiased=True)
-
-    with CKA(model, layers1=layers, config=config) as cka:
-        matrix = cka.compare(dataloader, progress=False)
-
-    print(f"\nCKA Matrix (RBF kernel):\n{matrix}")
-
-    fig, ax = plot_cka_heatmap(
-        matrix,
-        layers1=layers,
-        layers2=layers,
-        model1_name="SimpleCNN (RBF)",
-        model2_name="SimpleCNN (RBF)",
-        annot=True,
-        title="Self-Comparison with RBF Kernel",
-    )
-    fig.savefig("cka_rbf_kernel.png", dpi=150, bbox_inches="tight")
-    print("\nSaved: cka_rbf_kernel.png")
-
-
 def example_trend_plot():
     """Example: Plot CKA trend (diagonal values)."""
     print("\n" + "=" * 60)
-    print("Example 4: CKA trend plot")
+    print("Example 3: CKA trend plot")
     print("=" * 60)
 
     model = SimpleCNN()
@@ -208,9 +165,7 @@ def example_trend_plot():
 
     layers = ["conv1", "bn1", "conv2", "bn2", "conv3", "bn3", "fc"]
 
-    config = CKAConfig(kernel="linear", unbiased=True)
-
-    with CKA(model, layers1=layers, config=config) as cka:
+    with CKA(model, model, model1_layers=layers) as cka:
         matrix = cka.compare(dataloader, progress=False)
 
     # Extract diagonal (self-similarity scores)
@@ -231,7 +186,7 @@ def example_trend_plot():
 def example_callable_api():
     """Example: Using the callable API (simpler syntax)."""
     print("\n" + "=" * 60)
-    print("Example 5: Callable API")
+    print("Example 4: Callable API")
     print("=" * 60)
 
     model = SimpleCNN()
@@ -240,7 +195,7 @@ def example_callable_api():
     layers = ["conv1", "conv2", "conv3"]
 
     # Using callable API (no context manager needed)
-    cka = CKA(model, layers1=layers)
+    cka = CKA(model, model, model1_layers=layers)
     matrix = cka(dataloader, progress=False)  # Automatically handles hooks
 
     print(f"\nCKA Matrix (callable API):\n{matrix}")
@@ -249,7 +204,7 @@ def example_callable_api():
 def example_checkpoint():
     """Example: Saving and loading checkpoints."""
     print("\n" + "=" * 60)
-    print("Example 6: Checkpoint save/load")
+    print("Example 5: Checkpoint save/load")
     print("=" * 60)
 
     model = SimpleCNN()
@@ -257,7 +212,7 @@ def example_checkpoint():
 
     layers = ["conv1", "conv2", "conv3"]
 
-    with CKA(model, layers1=layers, model1_name="SimpleCNN") as cka:
+    with CKA(model, model, model1_layers=layers, model1_name="SimpleCNN") as cka:
         matrix = cka.compare(dataloader, progress=False)
 
         # Save checkpoint
@@ -271,9 +226,9 @@ def example_checkpoint():
     # Load checkpoint
     checkpoint = CKA.load_checkpoint("cka_checkpoint.pt")
     print(f"\nLoaded checkpoint:")
-    print(f"  Model: {checkpoint['model1_info']['name']}")
-    print(f"  Layers: {checkpoint['model1_info']['layers']}")
-    print(f"  Config: {checkpoint['config']}")
+    print(f"  Model: {checkpoint['model1_name']}")
+    print(f"  Layers: {checkpoint['model1_layers']}")
+    print(f"  Epsilon: {checkpoint['epsilon']}")
     print(f"  Metadata: {checkpoint['metadata']}")
 
 
@@ -285,7 +240,6 @@ def main():
 
     example_self_comparison()
     example_two_model_comparison()
-    example_rbf_kernel()
     example_trend_plot()
     example_callable_api()
     example_checkpoint()

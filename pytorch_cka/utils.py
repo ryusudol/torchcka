@@ -1,96 +1,26 @@
 """Utility functions for CKA computation."""
 
 from contextlib import contextmanager
-from typing import Dict, Iterator, List, Optional, Tuple
+from typing import Dict, Iterator, Optional, Tuple
 
 import torch
 import torch.nn as nn
 
 
-def validate_batch_size(n: int, unbiased: bool = True) -> None:
+def validate_batch_size(n: int) -> None:
     """Validate that batch size is sufficient for HSIC computation.
 
     Args:
         n: Batch size (number of samples).
-        unbiased: Whether using unbiased estimator.
 
     Raises:
-        ValueError: If n <= 3 for unbiased, or n <= 1 for biased.
+        ValueError: If n <= 3 (unbiased HSIC requires n > 3).
     """
-    if unbiased and n <= 3:
+    if n <= 3:
         raise ValueError(
-            f"Unbiased HSIC requires batch size > 3, got {n}. "
-            "Use unbiased=False or increase batch size."
+            f"HSIC requires batch size > 3, got {n}. "
+            "Increase batch size to at least 4."
         )
-    if not unbiased and n <= 1:
-        raise ValueError(f"HSIC requires batch size > 1, got {n}")
-
-
-def validate_layers(
-    model: nn.Module,
-    layers: List[str],
-) -> Tuple[List[str], List[str]]:
-    """Validate layer names exist in model.
-
-    Args:
-        model: PyTorch model.
-        layers: List of layer names to validate.
-
-    Returns:
-        Tuple of (valid_layers, invalid_layers).
-    """
-    model_layers = {name for name, _ in model.named_modules()}
-    valid = [layer for layer in layers if layer in model_layers]
-    invalid = [layer for layer in layers if layer not in model_layers]
-    return valid, invalid
-
-
-def get_all_layer_names(model: nn.Module, include_root: bool = False) -> List[str]:
-    """Get all layer names from a model.
-
-    Args:
-        model: PyTorch model.
-        include_root: Whether to include the root module (empty string name).
-
-    Returns:
-        List of layer names.
-    """
-    names = [name for name, _ in model.named_modules()]
-    if not include_root and names and names[0] == "":
-        names = names[1:]
-    return names
-
-
-def auto_select_layers(
-    model: nn.Module,
-    max_layers: int = 50,
-    model_name: str = "Model",
-) -> Tuple[List[str], bool]:
-    """Auto-select layers from a model with optional truncation.
-
-    Args:
-        model: PyTorch model to extract layers from.
-        max_layers: Maximum number of layers to select.
-        model_name: Name to use in warning message.
-
-    Returns:
-        Tuple of (selected_layers, truncated).
-    """
-    import warnings
-
-    all_layers = get_all_layer_names(model)
-    truncated = len(all_layers) > max_layers
-
-    if truncated:
-        selected = all_layers[:max_layers]
-        warnings.warn(
-            f"{model_name} has {len(all_layers)} layers. Auto-selected first {max_layers}. "
-            "Consider specifying layers explicitly for better control."
-        )
-    else:
-        selected = all_layers
-
-    return selected, truncated
 
 
 def get_device(

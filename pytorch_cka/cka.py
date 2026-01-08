@@ -5,35 +5,22 @@ between layers of PyTorch models with proper hook management and memory safety.
 """
 
 import warnings
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
+from torch.types import Device
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from .config import CKAConfig
-from .core import compute_gram_matrix, hsic
+from .core import EPSILON, compute_gram_matrix, hsic
 from .utils import (
     FeatureCache,
-    auto_select_layers,
     get_device,
     unwrap_model,
     validate_batch_size,
-    validate_layers,
 )
-
-BATCH_INPUT_KEYS = ("input", "inputs", "x", "image", "images", "input_ids", "pixel_values")
-
-
-@dataclass
-class ModelInfo:
-    """Information about a model being compared."""
-
-    name: str
-    layers: List[str]
 
 
 class CKA:
@@ -43,117 +30,72 @@ class CKA:
     and efficient CKA computation between model layers.
 
     Example:
-        >>> config = CKAConfig(kernel="linear", unbiased=True)
-        >>> with CKA(model1, model2, layers1=["layer1", "layer2"], config=config) as cka:
+        >>> with CKA(model1, model2, model1_layers=["layer1", "layer2"]) as cka:
         ...     matrix = cka.compare(dataloader)
         ...     print(matrix)
-
-    Attributes:
-        model1: First model for comparison.
-        model2: Second model for comparison.
-        config: CKA computation configuration.
-        model1_info: Metadata about first model.
-        model2_info: Metadata about second model.
     """
 
     def __init__(
         self,
         model1: nn.Module,
-        model2: Optional[nn.Module] = None,
-        layers1: Optional[List[str]] = None,
-        layers2: Optional[List[str]] = None,
+        model2: nn.Module,
         model1_name: Optional[str] = None,
         model2_name: Optional[str] = None,
-        config: Optional[CKAConfig] = None,
-        device: Optional[Union[str, torch.device]] = None,
+        model1_layers: Optional[List[str]] = None,
+        model2_layers: Optional[List[str]] = None,
+        device: Device = None,
     ) -> None:
         """Initialize CKA analyzer.
 
         Args:
             model1: First model to compare.
-            model2: Second model. If None, compares model1 with itself.
-            layers1: Layers to hook in model1. If None, auto-selects up to 50 layers.
-            layers2: Layers to hook in model2. If None, uses layers1.
+            model2: Second model to compare.
+            model1_layers: Layers to hook in model1. If None, uses all layers.
+            model2_layers: Layers to hook in model2. If None, uses all layers.
             model1_name: Display name for model1.
             model2_name: Display name for model2.
-            config: CKA computation configuration.
             device: Device for computation. If None, auto-detects from model.
 
         Raises:
             ValueError: If no valid layers are found.
         """
-        # Handle same-model comparison
-        self._same_model = model2 is None or model1 is model2
-
         # Unwrap DataParallel/DDP
         self.model1 = unwrap_model(model1)
-        self.model2 = unwrap_model(model2) if model2 is not None else self.model1
+        self.model2 = unwrap_model(model2)
 
-        # Configuration
-        self.config = config or CKAConfig()
-        if device is not None:
-            self.config.device = torch.device(device) if isinstance(device, str) else device
-        if self.config.device is None:
-            self.config.device = get_device(self.model1)
+        self.device = torch.device(device) if device else get_device(self.model1)
 
-        # Validate and store layers
-        if layers1 is None:
-            layers1, _ = auto_select_layers(self.model1, max_layers=50, model_name="Model1")
+        # Get all layers if not specified
+        if not model1_layers:
+            model1_layers = [name for name, _ in self.model1.named_modules() if name]
+            if len(model1_layers) > 150:
+                warnings.warn(
+                    f"Model1 has {len(model1_layers)} layers. "
+                    "Consider specifying layers explicitly for faster computation."
+                )
+        if not model2_layers:
+            model2_layers = [name for name, _ in self.model2.named_modules() if name]
+            if len(model2_layers) > 150:
+                warnings.warn(
+                    f"Model2 has {len(model2_layers)} layers. "
+                    "Consider specifying layers explicitly for faster computation."
+                )
 
-        if layers2 is None:
-            if self._same_model:
-                layers2 = layers1
-            else:
-                layers2, _ = auto_select_layers(self.model2, max_layers=50, model_name="Model2")
+        self.model1_layers = model1_layers
+        self.model2_layers = model2_layers
 
-        # Validate layers exist
-        valid1, invalid1 = validate_layers(self.model1, layers1)
-        valid2, invalid2 = validate_layers(self.model2, layers2)
+        self.model1_name = model1_name or self.model1.__class__.__name__
+        self.model2_name = model2_name or self.model2.__class__.__name__
 
-        if invalid1:
-            warnings.warn(f"Layers not found in model1: {invalid1}")
-        if invalid2 and not self._same_model:
-            warnings.warn(f"Layers not found in model2: {invalid2}")
-
-        if not valid1:
-            raise ValueError(
-                "No valid layers found in model1. "
-                "Use model.named_modules() to see available layers."
-            )
-        if not valid2:
-            raise ValueError(
-                "No valid layers found in model2. "
-                "Use model.named_modules() to see available layers."
-            )
-
-        self.layers1 = valid1
-        self.layers2 = valid2
-
-        # Model info
-        self.model1_info = ModelInfo(
-            name=model1_name or self.model1.__class__.__name__,
-            layers=self.layers1,
-        )
-        self.model2_info = ModelInfo(
-            name=model2_name or self.model2.__class__.__name__,
-            layers=self.layers2,
-        )
-
-        # Feature storage
-        # When _same_model is True, _features1 stores the union of layers1 and layers2,
-        # and _features2 is aliased to _features1 in compare() for efficiency.
         self._features1 = FeatureCache(detach=True)
         self._features2 = FeatureCache(detach=True)
 
         # Hook handles for cleanup
         self._hook_handles: List[torch.utils.hooks.RemovableHandle] = []
 
-        # Training state for restoration
         self._model1_training: Optional[bool] = None
         self._model2_training: Optional[bool] = None
 
-        # Hooks registered flag
-        self._hooks_registered = False
 
     # =========================================================================
     # CONTEXT MANAGER PROTOCOL
@@ -164,8 +106,7 @@ class CKA:
         self._register_hooks()
         self._save_training_state()
         self.model1.eval()
-        if not self._same_model:
-            self.model2.eval()
+        self.model2.eval()
         return self
 
     def __exit__(
@@ -206,59 +147,80 @@ class CKA:
             # Handle tuple outputs (e.g., from attention layers)
             if isinstance(output, tuple):
                 output = output[0]
+            # Handle HuggingFace ModelOutput objects (e.g., BaseModelOutput)
+            elif hasattr(output, "last_hidden_state"):
+                output = output.last_hidden_state
+            # Skip non-tensor outputs
+            if not isinstance(output, torch.Tensor):
+                return
             cache.store(layer_name, output)
 
         return hook
 
     def _register_hooks(self) -> None:
         """Register forward hooks on specified layers."""
-        if self._hooks_registered:
+        if self._hook_handles:
             return
 
-        # When same model, hook union of layers1 and layers2 to _features1.
-        # A single forward pass will populate all needed features, and
-        # _features2 will be aliased to _features1 in compare().
-        layers_to_hook = set(self.layers1)
-        if self._same_model:
-            layers_to_hook = layers_to_hook.union(set(self.layers2))
-
         # Register hooks for model1
+        found1 = set()
         for name, module in self.model1.named_modules():
-            if name in layers_to_hook:
+            if name in self.model1_layers:
                 handle = module.register_forward_hook(
                     self._make_hook(self._features1, name)
                 )
                 self._hook_handles.append(handle)
+                found1.add(name)
 
-        # Register hooks for model2 (only if different model)
-        if not self._same_model:
-            for name, module in self.model2.named_modules():
-                if name in self.layers2:
-                    handle = module.register_forward_hook(
-                        self._make_hook(self._features2, name)
-                    )
-                    self._hook_handles.append(handle)
+        # Warn about missing layers in model1
+        missing1 = set(self.model1_layers) - found1
+        if missing1:
+            warnings.warn(f"Layers not found in model1: {sorted(missing1)}")
 
-        self._hooks_registered = True
+        # Register hooks for model2
+        found2 = set()
+        for name, module in self.model2.named_modules():
+            if name in self.model2_layers:
+                handle = module.register_forward_hook(
+                    self._make_hook(self._features2, name)
+                )
+                self._hook_handles.append(handle)
+                found2.add(name)
+
+        # Warn about missing layers in model2
+        missing2 = set(self.model2_layers) - found2
+        if missing2:
+            warnings.warn(f"Layers not found in model2: {sorted(missing2)}")
+
+        # Raise if no valid layers found in either model
+        if not found1:
+            raise ValueError(
+                "No valid layers found in model1. "
+                "Use model.named_modules() to see available layers."
+            )
+        if not found2:
+            raise ValueError(
+                "No valid layers found in model2. "
+                "Use model.named_modules() to see available layers."
+            )
+
 
     def _remove_hooks(self) -> None:
         """Remove all registered hooks."""
         for handle in self._hook_handles:
             handle.remove()
         self._hook_handles.clear()
-        self._hooks_registered = False
 
     def _save_training_state(self) -> None:
         """Save models' training state for later restoration."""
         self._model1_training = self.model1.training
-        if not self._same_model:
-            self._model2_training = self.model2.training
+        self._model2_training = self.model2.training
 
     def _restore_training_state(self) -> None:
         """Restore models' training state."""
         if self._model1_training is not None:
             self.model1.train(self._model1_training)
-        if not self._same_model and self._model2_training is not None:
+        if self._model2_training is not None:
             self.model2.train(self._model2_training)
 
     # =========================================================================
@@ -281,12 +243,12 @@ class CKA:
             callback: Optional callback(batch_idx, total_batches, current_matrix).
 
         Returns:
-            CKA similarity matrix of shape (len(layers1), len(layers2)).
+            CKA similarity matrix of shape (len(model1_layers), len(model2_layers)).
 
         Raises:
             RuntimeError: If hooks are not registered (use context manager).
         """
-        if not self._hooks_registered:
+        if not self._hook_handles:
             raise RuntimeError(
                 "Hooks not registered. Use 'with CKA(...) as cka:' context manager "
                 "or call _register_hooks() first."
@@ -295,15 +257,13 @@ class CKA:
         if dataloader2 is None:
             dataloader2 = dataloader
 
-        n_layers1 = len(self.layers1)
-        n_layers2 = len(self.layers2)
+        n_layers1 = len(self.model1_layers)
+        n_layers2 = len(self.model2_layers)
 
         # Accumulators for minibatch CKA
-        hsic_xy = torch.zeros(
-            n_layers1, n_layers2, device=self.config.device, dtype=self.config.dtype
-        )
-        hsic_xx = torch.zeros(n_layers1, device=self.config.device, dtype=self.config.dtype)
-        hsic_yy = torch.zeros(n_layers2, device=self.config.device, dtype=self.config.dtype)
+        hsic_xy = torch.zeros(n_layers1, n_layers2, device=self.device)
+        hsic_xx = torch.zeros(n_layers1, device=self.device)
+        hsic_yy = torch.zeros(n_layers2, device=self.device)
 
         total_batches = min(len(dataloader), len(dataloader2))
         iterator = zip(dataloader, dataloader2)
@@ -320,18 +280,14 @@ class CKA:
                 x1 = self._extract_input(batch1)
                 x2 = self._extract_input(batch2)
 
-                validate_batch_size(x1.shape[0], self.config.unbiased)
+                validate_batch_size(x1.shape[0])
 
-                x1 = x1.to(self.config.device)
-                x2 = x2.to(self.config.device)
+                x1 = x1.to(self.device)
+                x2 = x2.to(self.device)
 
-                # Forward pass
+                # Forward pass for both models
                 self.model1(x1)
-                if not self._same_model:
-                    self.model2(x2)
-                else:
-                    # Same model: _features1 contains union of layers1 and layers2
-                    self._features2 = self._features1
+                self.model2(x2)
 
                 self._accumulate_hsic(hsic_xy, hsic_xx, hsic_yy)
 
@@ -362,7 +318,7 @@ class CKA:
         elif isinstance(batch, (list, tuple)):
             return batch[0]
         elif isinstance(batch, dict):
-            for key in BATCH_INPUT_KEYS:
+            for key in ("input", "inputs", "x", "image", "images", "input_ids", "pixel_values"):
                 if key in batch:
                     return batch[key]
             raise ValueError(f"Cannot find input in dict batch. Keys: {list(batch.keys())}")
@@ -375,7 +331,7 @@ class CKA:
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Prepare gram matrix and compute self-HSIC for a feature tensor.
 
-        Handles flattening, dtype conversion, gram computation, and HSIC(K,K).
+        Handles flattening and gram computation.
 
         Args:
             feat: Feature tensor from a layer, shape (B, ...).
@@ -386,13 +342,8 @@ class CKA:
         if feat.dim() > 2:
             feat = feat.flatten(1)
 
-        feat = feat.to(dtype=self.config.dtype)
-
-        gram = compute_gram_matrix(
-            feat, self.config.kernel, self.config.sigma, self.config.epsilon
-        )
-
-        hsic_self = hsic(gram, gram, self.config.unbiased, self.config.epsilon)
+        gram = compute_gram_matrix(feat)
+        hsic_self = hsic(gram, gram)
 
         return gram, hsic_self
 
@@ -413,7 +364,7 @@ class CKA:
         gram2_cache: Dict[str, torch.Tensor] = {}
 
         # Cache gram matrices and HSIC(K, K) for model1
-        for i, layer1 in enumerate(self.layers1):
+        for i, layer1 in enumerate(self.model1_layers):
             feat1 = self._features1.get(layer1)
             if feat1 is None:
                 continue
@@ -423,7 +374,7 @@ class CKA:
             hsic_xx[i] += hsic_kk
 
         # Cache gram matrices and HSIC(L, L) for model2
-        for j, layer2 in enumerate(self.layers2):
+        for j, layer2 in enumerate(self.model2_layers):
             feat2 = self._features2.get(layer2)
             if feat2 is None:
                 continue
@@ -433,17 +384,17 @@ class CKA:
             hsic_yy[j] += hsic_ll
 
         # Compute cross-HSIC for all layer pairs
-        for i, layer1 in enumerate(self.layers1):
+        for i, layer1 in enumerate(self.model1_layers):
             gram1 = gram1_cache.get(layer1)
             if gram1 is None:
                 continue
 
-            for j, layer2 in enumerate(self.layers2):
+            for j, layer2 in enumerate(self.model2_layers):
                 gram2 = gram2_cache.get(layer2)
                 if gram2 is None:
                     continue
 
-                hsic_kl = hsic(gram1, gram2, self.config.unbiased, self.config.epsilon)
+                hsic_kl = hsic(gram1, gram2)
                 hsic_xy[i, j] += hsic_kl
 
     def _compute_cka_matrix(
@@ -464,7 +415,7 @@ class CKA:
         """
         # CKA[i,j] = HSIC_xy[i,j] / sqrt(HSIC_xx[i] * HSIC_yy[j])
         # Clamp to non-negative to handle potential negative unbiased HSIC values
-        denominator = torch.sqrt(torch.clamp(hsic_xx.unsqueeze(1) * hsic_yy.unsqueeze(0), min=0.0)) + self.config.epsilon
+        denominator = torch.sqrt(torch.clamp(hsic_xx.unsqueeze(1) * hsic_yy.unsqueeze(0), min=0.0)) + EPSILON
         return hsic_xy / denominator
 
     # =========================================================================
@@ -486,20 +437,10 @@ class CKA:
         """
         checkpoint = {
             "cka_matrix": cka_matrix.cpu(),
-            "model1_info": {
-                "name": self.model1_info.name,
-                "layers": self.model1_info.layers,
-            },
-            "model2_info": {
-                "name": self.model2_info.name,
-                "layers": self.model2_info.layers,
-            },
-            "config": {
-                "kernel": self.config.kernel,
-                "sigma": self.config.sigma,
-                "unbiased": self.config.unbiased,
-                "epsilon": self.config.epsilon,
-            },
+            "model1_name": self.model1_name,
+            "model1_layers": self.model1_layers,
+            "model2_name": self.model2_name,
+            "model2_layers": self.model2_layers,
             "metadata": metadata or {},
         }
         torch.save(checkpoint, path)

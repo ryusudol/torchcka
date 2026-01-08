@@ -204,22 +204,19 @@ config = checkpoint["config"]
 
 ### Core Functions
 
-| Function                              | Description                                               |
-| ------------------------------------- | --------------------------------------------------------- |
-| `cka(X, Y, ...)`                      | Compute CKA between two activation matrices               |
-| `hsic(K, L, ...)`                     | Compute HSIC between two Gram matrices                    |
-| `compute_gram_matrix(X, kernel, ...)` | Compute Gram matrix with linear or RBF kernel             |
-| `linear_kernel(X, Y)`                 | Linear kernel: $K = XY^T$                                 |
-| `rbf_kernel(X, Y, sigma)`             | RBF kernel: $K_{ij} = \exp(-\|x_i - y_j\|^2 / 2\sigma^2)$ |
+| Function                 | Description                                 |
+| ------------------------ | ------------------------------------------- |
+| `cka(X, Y, ...)`         | Compute CKA between two activation matrices |
+| `hsic(K, L, ...)`        | Compute HSIC between two Gram matrices      |
+| `compute_gram_matrix(X)` | Compute Gram matrix using linear kernel     |
 
 ### Utilities
 
-| Function                         | Description                       |
-| -------------------------------- | --------------------------------- |
-| `get_all_layer_names(model)`     | List all named modules in a model |
-| `validate_layers(model, layers)` | Check which layers exist          |
-| `unwrap_model(model)`            | Unwrap DataParallel/DDP models    |
-| `get_device(model)`              | Detect model device               |
+| Function                         | Description                    |
+| -------------------------------- | ------------------------------ |
+| `validate_layers(model, layers)` | Check which layers exist       |
+| `unwrap_model(model)`            | Unwrap DataParallel/DDP models |
+| `get_device(model)`              | Detect model device            |
 
 ### Visualization
 

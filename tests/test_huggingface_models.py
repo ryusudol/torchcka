@@ -26,7 +26,7 @@ try:
 except ImportError:
     TRANSFORMERS_AVAILABLE = False
 
-from pytorch_cka import CKA, CKAConfig
+from pytorch_cka import CKA
 
 from .helpers import get_sample_layers
 
@@ -98,7 +98,7 @@ class TestBERT:
         """BERT should work with CKA feature extraction."""
         layers = get_sample_layers(bert_model, max_layers=5)
 
-        with CKA(bert_model, layers1=layers) as cka:
+        with CKA(bert_model, bert_model, model1_layers=layers, model2_layers=layers) as cka:
             matrix = cka.compare(text_dataloader, progress=False)
 
         assert matrix.shape == (len(layers), len(layers))
@@ -114,7 +114,7 @@ class TestBERT:
         ]
 
         if encoder_layers:
-            with CKA(bert_model, layers1=encoder_layers) as cka:
+            with CKA(bert_model, bert_model, model1_layers=encoder_layers, model2_layers=encoder_layers) as cka:
                 matrix = cka.compare(text_dataloader, progress=False)
 
             assert not torch.isnan(matrix).any()
@@ -128,7 +128,7 @@ class TestBERT:
         ][:2]
 
         if attention_layers:
-            with CKA(bert_model, layers1=attention_layers) as cka:
+            with CKA(bert_model, bert_model, model1_layers=attention_layers, model2_layers=attention_layers) as cka:
                 matrix = cka.compare(text_dataloader, progress=False)
 
             assert not torch.isnan(matrix).any()
@@ -137,7 +137,7 @@ class TestBERT:
         """BERT should correctly extract input from dict batches."""
         layers = get_sample_layers(bert_model, max_layers=3)
 
-        with CKA(bert_model, layers1=layers) as cka:
+        with CKA(bert_model, bert_model, model1_layers=layers, model2_layers=layers) as cka:
             matrix = cka.compare(text_dataloader, progress=False)
 
         assert matrix.shape == (len(layers), len(layers))
@@ -149,7 +149,7 @@ class TestBERT:
         layers = get_sample_layers(bert_model, max_layers=3)
         hooks_before = sum(len(m._forward_hooks) for m in bert_model.modules())
 
-        with CKA(bert_model, layers1=layers) as cka:
+        with CKA(bert_model, bert_model, model1_layers=layers, model2_layers=layers) as cka:
             _ = cka.compare(text_dataloader, progress=False)
 
         hooks_after = sum(len(m._forward_hooks) for m in bert_model.modules())
@@ -164,7 +164,7 @@ class TestGPT2:
         """GPT-2 should work with CKA feature extraction."""
         layers = get_sample_layers(gpt2_model, max_layers=5)
 
-        with CKA(gpt2_model, layers1=layers) as cka:
+        with CKA(gpt2_model, gpt2_model, model1_layers=layers, model2_layers=layers) as cka:
             matrix = cka.compare(text_dataloader, progress=False)
 
         assert matrix.shape == (len(layers), len(layers))
@@ -178,7 +178,7 @@ class TestGPT2:
         ][:3]
 
         if block_layers:
-            with CKA(gpt2_model, layers1=block_layers) as cka:
+            with CKA(gpt2_model, gpt2_model, model1_layers=block_layers, model2_layers=block_layers) as cka:
                 matrix = cka.compare(text_dataloader, progress=False)
 
             assert not torch.isnan(matrix).any()
@@ -190,7 +190,7 @@ class TestGPT2:
         ][:2]
 
         if attention_layers:
-            with CKA(gpt2_model, layers1=attention_layers) as cka:
+            with CKA(gpt2_model, gpt2_model, model1_layers=attention_layers, model2_layers=attention_layers) as cka:
                 matrix = cka.compare(text_dataloader, progress=False)
 
             assert not torch.isnan(matrix).any()
@@ -199,7 +199,7 @@ class TestGPT2:
         """GPT-2 self-comparison diagonal should be approximately 1.0."""
         layers = get_sample_layers(gpt2_model, max_layers=3)
 
-        with CKA(gpt2_model, layers1=layers) as cka:
+        with CKA(gpt2_model, gpt2_model, model1_layers=layers, model2_layers=layers) as cka:
             matrix = cka.compare(text_dataloader, progress=False)
 
         diagonal = torch.diag(matrix)
@@ -214,7 +214,7 @@ class TestT5Encoder:
         """T5 encoder should work with CKA feature extraction."""
         layers = get_sample_layers(t5_encoder, max_layers=5)
 
-        with CKA(t5_encoder, layers1=layers) as cka:
+        with CKA(t5_encoder, t5_encoder, model1_layers=layers, model2_layers=layers) as cka:
             matrix = cka.compare(text_dataloader, progress=False)
 
         assert matrix.shape == (len(layers), len(layers))
@@ -228,7 +228,7 @@ class TestT5Encoder:
         ][:3]
 
         if block_layers:
-            with CKA(t5_encoder, layers1=block_layers) as cka:
+            with CKA(t5_encoder, t5_encoder, model1_layers=block_layers, model2_layers=block_layers) as cka:
                 matrix = cka.compare(text_dataloader, progress=False)
 
             assert not torch.isnan(matrix).any()
@@ -237,7 +237,7 @@ class TestT5Encoder:
         """T5 encoder self-comparison diagonal should be approximately 1.0."""
         layers = get_sample_layers(t5_encoder, max_layers=3)
 
-        with CKA(t5_encoder, layers1=layers) as cka:
+        with CKA(t5_encoder, t5_encoder, model1_layers=layers, model2_layers=layers) as cka:
             matrix = cka.compare(text_dataloader, progress=False)
 
         diagonal = torch.diag(matrix)
@@ -254,7 +254,7 @@ class TestCrossArchitectureComparison:
         gpt2_layers = get_sample_layers(gpt2_model, max_layers=3)
 
         with CKA(
-            bert_model, gpt2_model, layers1=bert_layers, layers2=gpt2_layers
+            bert_model, gpt2_model, model1_layers=bert_layers, model2_layers=gpt2_layers
         ) as cka:
             matrix = cka.compare(text_dataloader, progress=False)
 
@@ -282,7 +282,7 @@ class TestCrossArchitectureComparison:
 
         layers = get_sample_layers(model1, max_layers=3)
 
-        with CKA(model1, model2, layers1=layers, layers2=layers) as cka:
+        with CKA(model1, model2, model1_layers=layers, model2_layers=layers) as cka:
             matrix = cka.compare(text_dataloader, progress=False)
 
         assert matrix.shape == (len(layers), len(layers))
@@ -297,7 +297,7 @@ class TestNumericalStability:
         """BERT should produce valid CKA values without NaN/Inf."""
         layers = get_sample_layers(bert_model, max_layers=3)
 
-        with CKA(bert_model, layers1=layers) as cka:
+        with CKA(bert_model, bert_model, model1_layers=layers, model2_layers=layers) as cka:
             matrix = cka.compare(text_dataloader, progress=False)
 
         assert not torch.isnan(matrix).any(), "BERT produced NaN values"
@@ -307,41 +307,9 @@ class TestNumericalStability:
         """GPT-2 should produce valid CKA values without NaN/Inf."""
         layers = get_sample_layers(gpt2_model, max_layers=3)
 
-        with CKA(gpt2_model, layers1=layers) as cka:
+        with CKA(gpt2_model, gpt2_model, model1_layers=layers, model2_layers=layers) as cka:
             matrix = cka.compare(text_dataloader, progress=False)
 
         assert not torch.isnan(matrix).any(), "GPT-2 produced NaN values"
         assert not torch.isinf(matrix).any(), "GPT-2 produced Inf values"
 
-    def test_float64_precision_bert(self, bert_model, text_dataloader):
-        """BERT should work with float64 precision."""
-        layers = get_sample_layers(bert_model, max_layers=3)
-        config = CKAConfig(dtype=torch.float64)
-
-        with CKA(bert_model, layers1=layers, config=config) as cka:
-            matrix = cka.compare(text_dataloader, progress=False)
-
-        assert matrix.dtype == torch.float64
-        assert not torch.isnan(matrix).any()
-
-    def test_rbf_kernel_gpt2(self, gpt2_model, text_dataloader):
-        """RBF kernel should work with GPT-2 architecture."""
-        layers = get_sample_layers(gpt2_model, max_layers=3)
-        config = CKAConfig(kernel="rbf")
-
-        with CKA(gpt2_model, layers1=layers, config=config) as cka:
-            matrix = cka.compare(text_dataloader, progress=False)
-
-        assert not torch.isnan(matrix).any()
-        assert not torch.isinf(matrix).any()
-
-    def test_biased_hsic_bert(self, bert_model, text_dataloader):
-        """Biased HSIC estimator should work with BERT."""
-        layers = get_sample_layers(bert_model, max_layers=3)
-        config = CKAConfig(unbiased=False)
-
-        with CKA(bert_model, layers1=layers, config=config) as cka:
-            matrix = cka.compare(text_dataloader, progress=False)
-
-        assert not torch.isnan(matrix).any()
-        assert not torch.isinf(matrix).any()

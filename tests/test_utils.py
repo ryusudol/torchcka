@@ -7,7 +7,6 @@ import torch.nn as nn
 from pytorch_cka.utils import (
     FeatureCache,
     eval_mode,
-    get_all_layer_names,
     get_device,
     unwrap_model,
     validate_batch_size,
@@ -36,41 +35,18 @@ class NoParamModel(nn.Module):
 class TestValidateBatchSize:
     """Tests for validate_batch_size function."""
 
-    def test_unbiased_too_small(self):
-        """Should raise ValueError for batch size <= 3 in unbiased mode."""
-        with pytest.raises(ValueError, match="Unbiased HSIC requires batch size > 3"):
-            validate_batch_size(n=3, unbiased=True)
+    def test_too_small(self):
+        """Should raise ValueError for batch size <= 3."""
+        with pytest.raises(ValueError, match="HSIC requires batch size > 3"):
+            validate_batch_size(n=3)
 
-        with pytest.raises(ValueError, match="Unbiased HSIC requires batch size > 3"):
-            validate_batch_size(n=1, unbiased=True)
-
-    def test_biased_too_small(self):
-        """Should raise ValueError for batch size <= 1 in biased mode."""
-        with pytest.raises(ValueError, match="HSIC requires batch size > 1"):
-            validate_batch_size(n=1, unbiased=False)
+        with pytest.raises(ValueError, match="HSIC requires batch size > 3"):
+            validate_batch_size(n=1)
 
     def test_valid_sizes(self):
         """Should not raise for valid batch sizes."""
-        validate_batch_size(n=4, unbiased=True)  # No exception
-        validate_batch_size(n=2, unbiased=False)  # No exception
-
-
-class TestGetAllLayerNames:
-    """Tests for get_all_layer_names function."""
-
-    def test_exclude_root(self):
-        """Should exclude root module when include_root=False."""
-        model = SimpleModel()
-        names = get_all_layer_names(model, include_root=False)
-        assert "" not in names
-        assert "layer1" in names
-        assert "layer2" in names
-
-    def test_include_root(self):
-        """Should include root module when include_root=True."""
-        model = SimpleModel()
-        names = get_all_layer_names(model, include_root=True)
-        assert "" in names  # Root module has empty string name
+        validate_batch_size(n=4)  # No exception
+        validate_batch_size(n=10)  # No exception
 
 
 class TestGetDevice:

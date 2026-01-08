@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from pytorch_cka import CKA, CKAConfig
+from pytorch_cka import CKA
 
 
 class SimpleModel(nn.Module):
@@ -46,7 +46,7 @@ class TestCKAClass:
 
         hook_count_before = sum(len(m._forward_hooks) for m in model.modules())
 
-        with CKA(model, layers1=layers) as cka_analyzer:
+        with CKA(model, model, model1_layers=layers) as cka_analyzer:
             _ = cka_analyzer.compare(dataloader, progress=False)
 
         hook_count_after = sum(len(m._forward_hooks) for m in model.modules())
@@ -58,7 +58,7 @@ class TestCKAClass:
         model.train()
         assert model.training
 
-        with CKA(model, layers1=["layer1"]) as cka_analyzer:
+        with CKA(model, model, model1_layers=["layer1"]) as cka_analyzer:
             assert not model.training  # Should be in eval mode
             _ = cka_analyzer.compare(dataloader, progress=False)
 
@@ -69,7 +69,7 @@ class TestCKAClass:
         model.eval()
         assert not model.training
 
-        with CKA(model, layers1=["layer1"]) as cka_analyzer:
+        with CKA(model, model, model1_layers=["layer1"]) as cka_analyzer:
             assert not model.training
             _ = cka_analyzer.compare(dataloader, progress=False)
 
@@ -79,7 +79,7 @@ class TestCKAClass:
         """Comparing model with itself should work correctly."""
         layers = ["layer1", "layer2"]
 
-        with CKA(model, layers1=layers) as cka_analyzer:
+        with CKA(model, model, model1_layers=layers) as cka_analyzer:
             matrix = cka_analyzer.compare(dataloader, progress=False)
 
         # Diagonal should be ~1 (same features compared to themselves)
@@ -92,7 +92,7 @@ class TestCKAClass:
         layers1 = ["layer1"]
         layers2 = ["layer2", "layer3"]
 
-        with CKA(model, layers1=layers1, layers2=layers2) as cka_analyzer:
+        with CKA(model, model, model1_layers=layers1, model2_layers=layers2) as cka_analyzer:
             matrix = cka_analyzer.compare(dataloader, progress=False)
 
         assert matrix.shape == (1, 2)
@@ -105,7 +105,7 @@ class TestCKAClass:
         layers1 = ["layer1", "layer2"]
         layers2 = ["layer2", "layer3"]
 
-        with CKA(model, layers1=layers1, layers2=layers2) as cka_analyzer:
+        with CKA(model, model, model1_layers=layers1, model2_layers=layers2) as cka_analyzer:
             matrix = cka_analyzer.compare(dataloader, progress=False)
 
         assert matrix.shape == (2, 2)
@@ -119,16 +119,17 @@ class TestCKAClass:
         """CKA matrix should have correct shape."""
         layers = ["layer1", "layer2", "layer3"]
 
-        with CKA(model, layers1=layers) as cka_analyzer:
+        with CKA(model, model, model1_layers=layers) as cka_analyzer:
             matrix = cka_analyzer.compare(dataloader, progress=False)
 
         assert matrix.shape == (3, 3)
 
     def test_invalid_layers_warning(self, model):
-        """Should warn about invalid layer names."""
+        """Should warn about invalid layer names when hooks are registered."""
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            CKA(model, layers1=["nonexistent", "layer1"])
+            with CKA(model, model, model1_layers=["nonexistent", "layer1"]):
+                pass
 
             assert len(w) >= 1
             assert any("not found" in str(warning.message).lower() for warning in w)
@@ -136,11 +137,13 @@ class TestCKAClass:
     def test_no_valid_layers_error(self, model):
         """Should raise error when no valid layers found."""
         with pytest.raises(ValueError, match="No valid layers"):
-            CKA(model, layers1=["nonexistent1", "nonexistent2"])
+            with CKA(model, model, model1_layers=["nonexistent1", "nonexistent2"]):
+                pass
 
     def test_callable_api(self, model, dataloader):
         """CKA should be callable for automatic hook management."""
-        cka_analyzer = CKA(model, layers1=["layer1", "layer2"])
+        layers = ["layer1", "layer2"]
+        cka_analyzer = CKA(model, model, model1_layers=layers, model2_layers=layers)
         matrix = cka_analyzer(dataloader, progress=False)
 
         assert matrix.shape == (2, 2)
@@ -149,7 +152,7 @@ class TestCKAClass:
         """Should save and load checkpoints correctly."""
         checkpoint_path = tmp_path / "checkpoint.pt"
 
-        with CKA(model, layers1=["layer1"]) as cka_analyzer:
+        with CKA(model, model, model1_layers=["layer1"]) as cka_analyzer:
             matrix = cka_analyzer.compare(dataloader, progress=False)
             cka_analyzer.save_checkpoint(checkpoint_path, matrix, metadata={"test": "value"})
 
@@ -157,8 +160,8 @@ class TestCKAClass:
         checkpoint = CKA.load_checkpoint(checkpoint_path)
 
         assert "cka_matrix" in checkpoint
-        assert "model1_info" in checkpoint
-        assert "config" in checkpoint
+        assert "model1_name" in checkpoint
+        assert "model1_layers" in checkpoint
         assert "metadata" in checkpoint
         assert checkpoint["metadata"]["test"] == "value"
         assert torch.allclose(checkpoint["cka_matrix"], matrix.cpu())
@@ -168,7 +171,7 @@ class TestCKAClass:
         model1 = SimpleModel()
         model2 = SimpleModel()
 
-        with CKA(model1, model2, layers1=["layer1"], layers2=["layer1"]) as cka_analyzer:
+        with CKA(model1, model2, model1_layers=["layer1"], model2_layers=["layer1"]) as cka_analyzer:
             matrix = cka_analyzer.compare(dataloader, progress=False)
 
         assert matrix.shape == (1, 1)
@@ -181,7 +184,7 @@ class TestCKAClass:
         model2 = SimpleModel()
 
         with CKA(
-            model1, model2, layers1=["layer1", "layer2"], layers2=["layer1"]
+            model1, model2, model1_layers=["layer1", "layer2"], model2_layers=["layer1"]
         ) as cka_analyzer:
             matrix = cka_analyzer.compare(dataloader, progress=False)
 
@@ -194,7 +197,7 @@ class TestCKAClass:
         def callback(batch_idx, total_batches, current_matrix):
             call_count[0] += 1
 
-        with CKA(model, layers1=["layer1"]) as cka_analyzer:
+        with CKA(model, model, model1_layers=["layer1"]) as cka_analyzer:
             cka_analyzer.compare(dataloader, progress=False, callback=callback)
 
         # Should be called once per batch
@@ -212,27 +215,11 @@ class TestCKANumericalStability:
         dataset = TensorDataset(data)
         dataloader = DataLoader(dataset, batch_size=8)
 
-        config = CKAConfig(epsilon=1e-10)
-
-        with CKA(model, layers1=["layer1"], config=config) as cka_analyzer:
+        with CKA(model, model, model1_layers=["layer1"], model2_layers=["layer1"]) as cka_analyzer:
             matrix = cka_analyzer.compare(dataloader, progress=False)
 
         assert not torch.isnan(matrix).any()
         assert not torch.isinf(matrix).any()
-
-    def test_float64_precision(self):
-        """float64 should provide better precision."""
-        model = SimpleModel()
-        data = torch.randn(32, 10)
-        dataset = TensorDataset(data)
-        dataloader = DataLoader(dataset, batch_size=8)
-
-        config = CKAConfig(dtype=torch.float64)
-
-        with CKA(model, layers1=["layer1"], config=config) as cka_analyzer:
-            matrix = cka_analyzer.compare(dataloader, progress=False)
-
-        assert matrix.dtype == torch.float64
 
 
 class TestCKABatchExtraction:
@@ -245,7 +232,7 @@ class TestCKABatchExtraction:
         dataset = TensorDataset(data)
         dataloader = DataLoader(dataset, batch_size=8)
 
-        with CKA(model, layers1=["layer1"]) as cka_analyzer:
+        with CKA(model, model, model1_layers=["layer1"], model2_layers=["layer1"]) as cka_analyzer:
             matrix = cka_analyzer.compare(dataloader, progress=False)
 
         assert matrix.shape == (1, 1)
@@ -258,7 +245,7 @@ class TestCKABatchExtraction:
         dataset = TensorDataset(data, labels)
         dataloader = DataLoader(dataset, batch_size=8)
 
-        with CKA(model, layers1=["layer1"]) as cka_analyzer:
+        with CKA(model, model, model1_layers=["layer1"], model2_layers=["layer1"]) as cka_analyzer:
             matrix = cka_analyzer.compare(dataloader, progress=False)
 
         assert matrix.shape == (1, 1)
@@ -270,43 +257,10 @@ class TestCKABatchExtraction:
         dataset = TensorDataset(data)
         dataloader = DataLoader(dataset, batch_size=8)
 
-        cka_analyzer = CKA(model, layers1=["layer1"])
+        cka_analyzer = CKA(model, model, model1_layers=["layer1"])
 
         with pytest.raises(RuntimeError, match="Hooks not registered"):
             cka_analyzer.compare(dataloader)
-
-
-class TestCKAConfig:
-    """Tests for CKAConfig interaction."""
-
-    def test_rbf_kernel_config(self):
-        """Should use RBF kernel when configured."""
-        model = SimpleModel()
-        data = torch.randn(32, 10)
-        dataset = TensorDataset(data)
-        dataloader = DataLoader(dataset, batch_size=8)
-
-        config = CKAConfig(kernel="rbf")
-
-        with CKA(model, layers1=["layer1"], config=config) as cka_analyzer:
-            matrix = cka_analyzer.compare(dataloader, progress=False)
-
-        assert matrix.shape == (1, 1)
-        assert 0 <= matrix[0, 0] <= 1
-
-    def test_biased_hsic_config(self):
-        """Should use biased HSIC when configured."""
-        model = SimpleModel()
-        data = torch.randn(32, 10)
-        dataset = TensorDataset(data)
-        dataloader = DataLoader(dataset, batch_size=8)
-
-        config = CKAConfig(unbiased=False)
-
-        with CKA(model, layers1=["layer1"], config=config) as cka_analyzer:
-            matrix = cka_analyzer.compare(dataloader, progress=False)
-
-        assert matrix.shape == (1, 1)
 
 
 class TestCKADeviceHandling:
@@ -315,33 +269,46 @@ class TestCKADeviceHandling:
     def test_init_with_string_device(self):
         """Should accept device as string and convert to torch.device."""
         model = SimpleModel()
-        cka_analyzer = CKA(model, layers1=["layer1"], device="cpu")
+        cka_analyzer = CKA(model, model, model1_layers=["layer1"], model2_layers=["layer1"], device="cpu")
 
-        assert cka_analyzer.config.device == torch.device("cpu")
+        assert cka_analyzer.device == torch.device("cpu")
 
 
 class TestCKALayerAutoSelection:
     """Tests for automatic layer selection."""
 
-    # Note: Tests for >50 layer auto-selection (lines 99-102, 111-114) are omitted
-    # because they require complex mocking of both get_all_layer_names and
-    # validate_layers. These are defensive code paths for very large models.
+    def test_auto_layer_selection_excludes_empty_string(self):
+        """Auto-selected layers should not include empty string (root module)."""
+        model = SimpleModel()
+
+        # Don't specify layers - let CKA auto-detect them
+        cka_analyzer = CKA(model, model)
+
+        # Verify no empty strings in layer lists
+        assert "" not in cka_analyzer.model1_layers
+        assert "" not in cka_analyzer.model2_layers
+
+        # Verify layers were actually detected
+        assert len(cka_analyzer.model1_layers) > 0
+        assert len(cka_analyzer.model2_layers) > 0
 
     def test_invalid_layers2_warning(self):
-        """Should warn about invalid layer names in model2."""
+        """Should warn about invalid layer names in model2 when hooks are registered."""
         model1 = SimpleModel()
         model2 = SimpleModel()
 
         with pytest.warns(UserWarning, match="not found in model2"):
-            CKA(model1, model2, layers1=["layer1"], layers2=["nonexistent", "layer1"])
+            with CKA(model1, model2, model1_layers=["layer1"], model2_layers=["nonexistent", "layer1"]):
+                pass
 
     def test_no_valid_layers2_error(self):
         """Should raise error when no valid layers found in model2."""
         model1 = SimpleModel()
         model2 = SimpleModel()
 
-        with pytest.raises(ValueError, match="No valid layers found in model2"):
-            CKA(model1, model2, layers1=["layer1"], layers2=["fake1", "fake2"])
+        with pytest.raises(ValueError, match="No valid layers"):
+            with CKA(model1, model2, model1_layers=["layer1"], model2_layers=["fake1", "fake2"]):
+                pass
 
 
 class TestCKAHookManagement:
@@ -350,7 +317,7 @@ class TestCKAHookManagement:
     def test_register_hooks_idempotent(self):
         """Registering hooks twice should not duplicate them."""
         model = SimpleModel()
-        cka_analyzer = CKA(model, layers1=["layer1"])
+        cka_analyzer = CKA(model, model, model1_layers=["layer1"])
 
         cka_analyzer._register_hooks()
         initial_count = len(cka_analyzer._hook_handles)
@@ -371,7 +338,7 @@ class TestCKAProgress:
         dataset = TensorDataset(data)
         dataloader = DataLoader(dataset, batch_size=8)
 
-        with CKA(model, layers1=["layer1"]) as cka_analyzer:
+        with CKA(model, model, model1_layers=["layer1"]) as cka_analyzer:
             cka_analyzer.compare(dataloader, progress=True)
 
         # tqdm writes to stderr
@@ -386,7 +353,7 @@ class TestCKABatchInputExtraction:
     def test_dict_batch_with_input_key(self):
         """Should extract from dict batch with 'input' key."""
         model = SimpleModel()
-        cka_analyzer = CKA(model, layers1=["layer1"])
+        cka_analyzer = CKA(model, model, model1_layers=["layer1"])
 
         tensor = torch.randn(4, 10)
         batch = {"input": tensor, "label": torch.zeros(4)}
@@ -397,7 +364,7 @@ class TestCKABatchInputExtraction:
     def test_dict_batch_with_input_ids_key(self):
         """Should extract from dict batch with 'input_ids' key."""
         model = SimpleModel()
-        cka_analyzer = CKA(model, layers1=["layer1"])
+        cka_analyzer = CKA(model, model, model1_layers=["layer1"])
 
         tensor = torch.randint(0, 1000, (4, 128))
         batch = {"input_ids": tensor, "attention_mask": torch.ones(4, 128)}
@@ -408,7 +375,7 @@ class TestCKABatchInputExtraction:
     def test_dict_batch_no_recognized_key_error(self):
         """Should raise ValueError when dict batch has no recognized keys."""
         model = SimpleModel()
-        cka_analyzer = CKA(model)
+        cka_analyzer = CKA(model, model, model1_layers=["layer1"])
         batch = {"data": torch.randn(1, 2), "labels": torch.randn(3, 4)}
         with pytest.raises(ValueError, match="Cannot find input"):
             cka_analyzer._extract_input(batch)
@@ -416,28 +383,28 @@ class TestCKABatchInputExtraction:
     def test_unsupported_batch_type_error(self):
         """Should raise TypeError for unsupported batch types."""
         model = SimpleModel()
-        cka_analyzer = CKA(model, layers1=["layer1"])
+        cka_analyzer = CKA(model, model, model1_layers=["layer1"])
 
         with pytest.raises(TypeError, match="Unsupported batch type"):
             cka_analyzer._extract_input("invalid_string_batch")
 
 
-class TestModelInfo:
-    """Tests for ModelInfo dataclass."""
+class TestModelNames:
+    """Tests for model name storage."""
 
-    def test_model_info_created(self):
-        """ModelInfo should be created with correct values."""
+    def test_model_name_created(self):
+        """Model name should be stored correctly."""
         model = SimpleModel()
 
-        cka_analyzer = CKA(model, layers1=["layer1"], model1_name="TestModel")
+        cka_analyzer = CKA(model, model, model1_layers=["layer1"], model1_name="TestModel")
 
-        assert cka_analyzer.model1_info.name == "TestModel"
-        assert cka_analyzer.model1_info.layers == ["layer1"]
+        assert cka_analyzer.model1_name == "TestModel"
+        assert cka_analyzer.model1_layers == ["layer1"]
 
-    def test_model_info_auto_name(self):
-        """ModelInfo should use class name when name not provided."""
+    def test_model_name_auto(self):
+        """Model name should use class name when name not provided."""
         model = SimpleModel()
 
-        cka_analyzer = CKA(model, layers1=["layer1"])
+        cka_analyzer = CKA(model, model, model1_layers=["layer1"])
 
-        assert cka_analyzer.model1_info.name == "SimpleModel"
+        assert cka_analyzer.model1_name == "SimpleModel"
