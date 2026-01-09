@@ -201,37 +201,6 @@ def example_callable_api():
     print(f"\nCKA Matrix (callable API):\n{matrix}")
 
 
-def example_checkpoint():
-    """Example: Saving and loading checkpoints."""
-    print("\n" + "=" * 60)
-    print("Example 5: Checkpoint save/load")
-    print("=" * 60)
-
-    model = SimpleCNN()
-    dataloader = create_dummy_dataloader()
-
-    layers = ["conv1", "conv2", "conv3"]
-
-    with CKA(model, model, model1_layers=layers, model1_name="SimpleCNN") as cka:
-        matrix = cka.compare(dataloader, progress=False)
-
-        # Save checkpoint
-        cka.save_checkpoint(
-            "cka_checkpoint.pt",
-            matrix,
-            metadata={"experiment": "demo", "dataset": "random"},
-        )
-        print("\nSaved checkpoint: cka_checkpoint.pt")
-
-    # Load checkpoint
-    checkpoint = CKA.load_checkpoint("cka_checkpoint.pt")
-    print(f"\nLoaded checkpoint:")
-    print(f"  Model: {checkpoint['model1_name']}")
-    print(f"  Layers: {checkpoint['model1_layers']}")
-    print(f"  Epsilon: {checkpoint['epsilon']}")
-    print(f"  Metadata: {checkpoint['metadata']}")
-
-
 def main():
     """Run all examples."""
     print("=" * 60)
@@ -242,7 +211,6 @@ def main():
     example_two_model_comparison()
     example_trend_plot()
     example_callable_api()
-    example_checkpoint()
 
     print("\n" + "=" * 60)
     print("All examples completed!")

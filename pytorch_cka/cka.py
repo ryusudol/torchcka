@@ -5,8 +5,7 @@ between layers of PyTorch models with proper hook management and memory safety.
 """
 
 import warnings
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -527,45 +526,6 @@ class CKA:
         # Clamp to non-negative to handle potential negative unbiased HSIC values
         denominator = torch.sqrt(torch.clamp(hsic_xx.unsqueeze(1) * hsic_yy.unsqueeze(0), min=0.0)) + EPSILON
         return hsic_xy / denominator
-
-    # =========================================================================
-    # SERIALIZATION
-    # =========================================================================
-
-    def save_checkpoint(
-        self,
-        path: Union[str, Path],
-        cka_matrix: torch.Tensor,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """Save CKA results and configuration to a checkpoint file.
-
-        Args:
-            path: Path to save checkpoint.
-            cka_matrix: Computed CKA matrix.
-            metadata: Optional additional metadata.
-        """
-        checkpoint = {
-            "cka_matrix": cka_matrix.cpu(),
-            "model1_name": self.model1_name,
-            "model1_layers": self.model1_layers,
-            "model2_name": self.model2_name,
-            "model2_layers": self.model2_layers,
-            "metadata": metadata or {},
-        }
-        torch.save(checkpoint, path)
-
-    @staticmethod
-    def load_checkpoint(path: Union[str, Path]) -> Dict[str, Any]:
-        """Load a saved CKA checkpoint.
-
-        Args:
-            path: Path to checkpoint file.
-
-        Returns:
-            Dict containing cka_matrix, model info, config, and metadata.
-        """
-        return torch.load(path, weights_only=False)
 
     # =========================================================================
     # CALLABLE API

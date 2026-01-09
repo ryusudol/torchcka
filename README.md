@@ -177,29 +177,6 @@ fig, axes = plot_cka_comparison(
 
 ---
 
-## Checkpoints
-
-Save and load CKA results for later analysis:
-
-```python
-# Save
-with CKA(model, layers1=layers) as cka:
-    matrix = cka.compare(dataloader)
-    cka.save_checkpoint(
-        "results.pt",
-        matrix,
-        metadata={"experiment": "ablation", "dataset": "CIFAR-10"},
-    )
-
-# Load
-checkpoint = CKA.load_checkpoint("results.pt")
-matrix = checkpoint["cka_matrix"]
-layers = checkpoint["model1_info"]["layers"]
-config = checkpoint["config"]
-```
-
----
-
 ## API Reference
 
 ### Core Functions

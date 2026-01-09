@@ -148,24 +148,6 @@ class TestCKAClass:
 
         assert matrix.shape == (2, 2)
 
-    def test_checkpoint_save_load(self, model, dataloader, tmp_path):
-        """Should save and load checkpoints correctly."""
-        checkpoint_path = tmp_path / "checkpoint.pt"
-
-        with CKA(model, model, model1_layers=["layer1"]) as cka_analyzer:
-            matrix = cka_analyzer.compare(dataloader, progress=False)
-            cka_analyzer.save_checkpoint(checkpoint_path, matrix, metadata={"test": "value"})
-
-        # Load checkpoint
-        checkpoint = CKA.load_checkpoint(checkpoint_path)
-
-        assert "cka_matrix" in checkpoint
-        assert "model1_name" in checkpoint
-        assert "model1_layers" in checkpoint
-        assert "metadata" in checkpoint
-        assert checkpoint["metadata"]["test"] == "value"
-        assert torch.allclose(checkpoint["cka_matrix"], matrix.cpu())
-
     def test_two_different_models(self, dataloader):
         """Should compare two different models."""
         model1 = SimpleModel()
