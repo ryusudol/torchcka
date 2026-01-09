@@ -161,6 +161,7 @@ class CKA:
 
         return hook
 
+
     def _register_hooks(self) -> None:
         """Register forward hooks on specified layers."""
         if self._hook_handles:
@@ -242,10 +243,12 @@ class CKA:
             handle.remove()
         self._hook_handles.clear()
 
+
     def _save_training_state(self) -> None:
         """Save models' training state for later restoration."""
         self._model1_training = self.model1.training
         self._model2_training = self.model2.training
+
 
     def _restore_training_state(self) -> None:
         """Restore models' training state."""
@@ -328,6 +331,7 @@ class CKA:
 
         return cka_matrix
 
+
     def _extract_input(self, batch: Any) -> torch.Tensor:
         """Extract input tensor from batch.
 
@@ -353,6 +357,7 @@ class CKA:
         else:
             raise TypeError(f"Unsupported batch type: {type(batch)}")
 
+
     def _prepare_gram_and_self_hsic(
         self,
         feat: torch.Tensor,
@@ -374,6 +379,7 @@ class CKA:
         hsic_self = hsic(gram, gram)
 
         return gram, hsic_self
+
 
     def _accumulate_hsic(
         self,
@@ -461,6 +467,7 @@ class CKA:
                     hsic_kl = hsic(gram1, gram2)
                     hsic_xy[i, j] += hsic_kl
 
+
     def _accumulate_hsic_symmetric(
         self,
         hsic_xy: torch.Tensor,
@@ -506,6 +513,7 @@ class CKA:
                 if i != j:
                     hsic_xy[j, i] += hsic_kl
 
+
     def _compute_cka_matrix(
         self,
         hsic_xy: torch.Tensor,
@@ -526,6 +534,24 @@ class CKA:
         # Clamp to non-negative to handle potential negative unbiased HSIC values
         denominator = torch.sqrt(torch.clamp(hsic_xx.unsqueeze(1) * hsic_yy.unsqueeze(0), min=0.0)) + EPSILON
         return hsic_xy / denominator
+
+
+    def export(self, cka_matrix: torch.Tensor) -> Dict[str, Any]:
+        """Export CKA results as a dictionary.
+
+        Args:
+            cka_matrix: Computed CKA matrix from compare().
+
+        Returns:
+            Dictionary containing model names, layer names, and CKA matrix.
+        """
+        return {
+            "model1_name": self.model1_name,
+            "model2_name": self.model2_name,
+            "model1_layers": self.model1_layers,
+            "model2_layers": self.model2_layers,
+            "cka_matrix": cka_matrix,
+        }
 
     # =========================================================================
     # CALLABLE API
