@@ -14,7 +14,7 @@ Fast, memory-efficient, and numerically stable Centered Kernel Alignment (CKA) f
 </div>
 
 
-## ✨ Why PyTorch-CKA?
+## ✨ Key Features
 
 - **Fast** — optimized HSIC core + same-model single-pass optimization
 - **Memory-efficient** — minibatch CKA without full-dataset loading
