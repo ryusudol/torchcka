@@ -1,9 +1,3 @@
-"""Main CKA class for comparing neural network representations.
-
-This module provides the CKA class for computing Centered Kernel Alignment
-between layers of PyTorch models with proper hook management and memory safety.
-"""
-
 import warnings
 from typing import Any, Callable, Dict, List, Sequence, Tuple
 
@@ -27,11 +21,6 @@ class CKA:
 
     This class provides a context-manager-based API for safe hook management
     and efficient CKA computation between model layers.
-
-    Example:
-        >>> with CKA(model1, model2, model1_layers=["layer1", "layer2"]) as cka:
-        ...     matrix = cka.compare(dataloader)
-        ...     print(matrix)
     """
 
     @staticmethod

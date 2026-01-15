@@ -1,14 +1,3 @@
-"""Core mathematical functions for CKA computation.
-
-This module implements:
-- Gram matrix computation (using linear kernel)
-- HSIC (Hilbert-Schmidt Independence Criterion) computation
-
-References:
-    - Kornblith et al., 2019: "Similarity of Neural Network Representations Revisited"
-    - Nguyen et al., 2020: "Do Wide and Deep Networks Learn the Same Things?"
-"""
-
 import torch
 
 def compute_gram_matrix(x: torch.Tensor) -> torch.Tensor:

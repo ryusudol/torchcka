@@ -1,5 +1,3 @@
-"""Utility functions for CKA computation."""
-
 from typing import Dict, Iterator, Tuple
 
 import torch
@@ -65,60 +63,28 @@ class FeatureCache:
     """
 
     def __init__(self, detach: bool = True) -> None:
-        """Initialize feature cache.
-
-        Args:
-            detach: Whether to detach tensors from computation graph.
-        """
         self._features: Dict[str, torch.Tensor] = {}
         self._detach = detach
 
     def store(self, name: str, tensor: torch.Tensor) -> None:
-        """Store a feature tensor.
-
-        Args:
-            name: Layer name.
-            tensor: Feature tensor to store.
-        """
         if self._detach:
             tensor = tensor.detach()
         self._features[name] = tensor
 
     def get(self, name: str) -> torch.Tensor | None:
-        """Get a stored feature tensor.
-
-        Args:
-            name: Layer name.
-
-        Returns:
-            Stored tensor or None if not found.
-        """
         return self._features.get(name)
 
     def clear(self) -> None:
-        """Clear all stored features."""
         self._features.clear()
 
     def items(self) -> Iterator[Tuple[str, torch.Tensor]]:
-        """Iterate over stored features.
-
-        Yields:
-            Tuples of (layer_name, tensor).
-        """
         return iter(self._features.items())
 
     def keys(self) -> Iterator[str]:
-        """Iterate over layer names.
-
-        Yields:
-            Layer names.
-        """
         return iter(self._features.keys())
 
     def __len__(self) -> int:
-        """Return number of stored features."""
         return len(self._features)
 
     def __contains__(self, name: str) -> bool:
-        """Check if a layer name is in cache."""
         return name in self._features
