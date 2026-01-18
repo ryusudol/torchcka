@@ -15,7 +15,7 @@ References:
     - Nguyen et al., 2020: "Do Wide and Deep Networks Learn the Same Things?"
 """
 
-__version__ = "0.1.2"
+__version__ = "0.1.1"
 
 from .cka import CKA
 from .hsic import hsic, hsic_outer
