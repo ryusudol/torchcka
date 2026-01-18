@@ -1,13 +1,8 @@
 <div align="center">
-    
-# PyTorch-CKA
+# Centered Kernel Alignment (CKA)
 
-**Centered Kernel Alignment (CKA) for PyTorch**
-
-Fast, memory-efficient, and numerically stable Centered Kernel Alignment (CKA) for layer-wise similarity analysis.
-
+**Lightning-fast, Memory-efficient, and Numerically Stable CKA for PyTorch**
 </div>
-
 
 ## ✨ Key Features
 
@@ -16,24 +11,22 @@ Fast, memory-efficient, and numerically stable Centered Kernel Alignment (CKA) f
 - **Publication-ready plots** — heatmaps, trends, and comparison grids
 - **Production-ready** — HuggingFace, DataParallel/DDP, auto layer selection
 
-
 ## 📦 Installation
 
 Requires Python >= 3.10.
 
 ```bash
-# Using uv (recommended)
-uv add pytorch-cka
-
 # Using pip
 pip install pytorch-cka
 
+# Using uv
+uv add pytorch-cka
+
 # From source
-git clone https://github.com/ryusudol/pytorch-cka
+git clone https://github.com/ryusudol/Centered-Kernel-Alignment
 cd pytorch-cka
 uv sync  # or: pip install -e .
 ```
-
 
 ## 👟 Quick Start
 
@@ -70,7 +63,6 @@ with cka:
     cka_result = cka.export(cka_matrix)
 ```
 
-
 ### Visualization
 
 **Heatmap**
@@ -79,7 +71,7 @@ with cka:
 from pytorch_cka import plot_cka_heatmap
 
 fig, ax = plot_cka_heatmap(
-    matrix,
+    cka_matrix,
     layers1=layers,
     layers2=layers,
     model1_name="Model A",
@@ -92,14 +84,14 @@ fig, ax = plot_cka_heatmap(
 
 <table>
     <tr>
-      <td><img src="plots/heatmap_self.png" alt="Self-comparison heatmap" width="100%"/></td>
-      <td><img src="plots/heatmap_cross.png" alt="Cross-model comparison heatmap" width="100%"/></td>
-      <td><img src="plots/heatmap_masked.png" alt="Masked upper triangle heatmap" width="100%"/></td>
+      <td><img src="examples/plots/heatmap_self.png" alt="Self-comparison heatmap" width="100%"/></td>
+      <td><img src="examples/plots/heatmap_cross.png" alt="Cross-model comparison heatmap" width="100%"/></td>
+      <!-- <td><img src="plots/heatmap_masked.png" alt="Masked upper triangle heatmap" width="100%"/></td> -->
     </tr>
     <tr>
       <td align="center">Self-comparison</td>
       <td align="center">Cross-model</td>
-      <td align="center">Masked Upper</td>
+      <!-- <td align="center">Masked Upper</td> -->
     </tr>
 </table>
 
@@ -120,8 +112,8 @@ fig, ax = plot_cka_trend(
 
 <table>
     <tr>
-      <td><img src="plots/trend_single.png" alt="Single trend plot" width="100%"/></td>
-      <td><img src="plots/trend_multi.png" alt="Multiple trends comparison" width="100%"/></td>
+      <td><img src="examples/plots/trend_single.png" alt="Single trend plot" width="100%"/></td>
+      <td><img src="examples/plots/trend_multi.png" alt="Multiple trends comparison" width="100%"/></td>
     </tr>
     <tr>
       <td align="center">Single Trend</td>
@@ -129,7 +121,7 @@ fig, ax = plot_cka_trend(
     </tr>
 </table>
 
-**Side-by-Side Comparison**
+<!-- **Side-by-Side Comparison**
 
 ```python
 from pytorch_cka import plot_cka_comparison
@@ -144,13 +136,12 @@ fig, axes = plot_cka_comparison(
 
 <table>
     <tr>
-      <td><img src="plots/comparison_grid.png" alt="CKA comparison grid" width="100%"/></td>
+      <td><img src="examples/plots/comparison_grid.png" alt="CKA comparison grid" width="100%"/></td>
     </tr>
     <tr>
       <td align="center">CKA comparison grid</td>
     </tr>
-</table>
-
+</table> -->
 
 ## 📚 References
 
@@ -159,7 +150,6 @@ fig, axes = plot_cka_comparison(
 2. Nguyen, Thao, Maithra Raghu, and Simon Kornblith. ["Do Wide and Deep Networks Learn the Same Things?"](https://arxiv.org/abs/2010.15327) _arXiv 2020._ (Minibatch CKA)
 
 3. Wang, Tinghua, Xiaolu Dai, and Yuze Liu. ["Learning with Hilbert-Schmidt Independence Criterion: A Review."](https://www.sciencedirect.com/science/article/pii/S0950705121008297) _Knowledge-Based Systems 2021._
-
 
 ### Related Projects
 
